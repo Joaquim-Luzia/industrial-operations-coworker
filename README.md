@@ -6,7 +6,7 @@ A small scheduled bot for the Industrial Operations team. It reads Linear and po
 |---|---|
 | Weekdays 09:00 | One DM per person: blocked, late, due today, gone quiet (no update in 3+ working days), due this week, in flight without a due date, and PRs waiting on their review. Nobody is DMed on a day they have nothing to act on. |
 | Weekdays 09:00, lead only | Also: `needs-decision` issues assigned to you, unread Linear mentions, Slack messages you haven't answered in 24h+, and a one-line team total. |
-| Fridays 16:00 | A short summary DM to Joaquim and João (closed, late/blocked, cycle, risky projects, closed per person) with a link to the board's Week tab. Nothing is posted to channels. |
+| Fridays 16:00 | A summary DM to Joaquim and João, using the same rules as the board's Week tab: shipped against a usual week, what slipped, late and blocked now, cycle forecast, decisions needed, projects at risk, and who is over capacity next week. No per-person ranking, nothing posted to channels. |
 
 The team board: https://claude.ai/artifact/CdeQXEm882JJMMXQf2huVh (weekly view: add `#week`)
 

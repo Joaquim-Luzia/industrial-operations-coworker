@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 from coworker import logic
 
@@ -52,3 +52,46 @@ def test_blocks_escape_titles_and_link_board():
 
 def test_slug_matches_board():
     assert logic.slug("João Viegas") == "joao-viegas"
+
+
+def done_issue(ident, completed, est=2, due=None, email="a@x", labels=()):
+    return {"identifier": ident, "title": ident, "url": f"https://l/{ident}", "estimate": est, "dueDate": due,
+            "completedAt": completed, "state": {"name": "Done", "type": "completed"}, "assignee": {"email": email},
+            "labels": {"nodes": [{"name": l} for l in labels]}}
+
+
+def test_quantile_matches_d3():
+    assert logic.quantile([1, 2, 3, 4], .5) == 2.5
+    assert logic.quantile([1, 2, 3, 4], .25) == 1.75
+
+
+def test_points_count_unestimated_as_half():
+    assert logic.points({"estimate": None}) == 0.5 and logic.points({"estimate": 3}) == 3.0
+
+
+def test_baseline_needs_six_active_weeks():
+    assert logic.baseline([0] * 10 + [5] * 4) is None
+    b = logic.baseline([4, 6, 8, 10, 6, 8, 4, 6, 8, 10, 6, 8, 99, 99])  # the last two weeks are ignored
+    assert b["usual"] == 7.0 and b["lo"] == 6.0 and b["hi"] == 8.0
+
+
+def test_weekly_text_no_ranking_and_flags_slips():
+    monday = date(2026, 11, 2)
+    people = [{"name": "Ana Silva", "email": "a@x"}, {"name": "Rui Costa", "email": "r@x"}]
+    hist = []
+    for k in range(1, 15):  # 14 full weeks of history for Ana: 10 pt a week
+        d = monday - timedelta(days=7 * k) + timedelta(days=2)
+        hist += [done_issue(f"H{k}a", f"{d}T10:00:00Z", 5), done_issue(f"H{k}b", f"{d}T11:00:00Z", 5)]
+    this = [done_issue("W1", "2026-11-04T10:00:00Z", 5, due="2026-11-03"),            # closed late -> slipped
+            done_issue("W2", "2026-11-05T10:00:00Z", 3, labels=("ITSM",))]
+    open_ = [{"identifier": "O1", "title": "O1", "url": "https://l/O1", "dueDate": "2026-11-04", "estimate": 2,
+              "state": {"name": "In Progress", "type": "started"}, "assignee": {"email": "a@x"}},
+             {"identifier": "O2", "title": "O2", "url": "https://l/O2", "dueDate": "2026-11-10", "estimate": 20,
+              "state": {"name": "Todo", "type": "unstarted"}, "assignee": {"email": "a@x"}}]
+    ana = hist + this
+    txt = logic.weekly_text(monday=monday, today=date(2026, 11, 6), tz=TZ, team_done=ana, open_issues=open_, people=people,
+                            person_done={"a@x": ana}, decisions=[], cycle=None, risky_projects=[], week_url="https://b#week")
+    assert "Shipped *2 tickets, 8 pt*" in txt and "behind a usual week (10 pt)" in txt and "1 of them was support or bugs" in txt
+    assert "Slipped: *2*" in txt and "O1" in txt and "W1" in txt
+    assert "over capacity: Ana (22 pt scheduled, usual 10)" in txt
+    assert "Closed by" not in txt and "Rui" not in txt

@@ -10,7 +10,6 @@ Flags:
 """
 from __future__ import annotations
 import argparse, json, os, sys
-from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import yaml
@@ -180,37 +179,36 @@ def send_dm(slack: SlackClient, p: dict, text: str, blocks: list[dict], args, le
     print(f"{p['name']}: sent.")
 
 
+Q_PERSON_DONE = """query($email: String!, $since: DateTimeOrDuration!, $after: String) {
+  issues(first: 250, after: $after, filter: { assignee: { email: { eq: $email } }, completedAt: { gte: $since } }) {
+    nodes { %s } pageInfo { hasNextPage endCursor } } }""" % ISSUE_FIELDS
+Q_DECISIONS_ALL = """query($label: String!, $after: String) {
+  issues(first: 100, after: $after, filter: { labels: { name: { eq: $label } }, state: { type: { nin: ["completed","canceled"] } } }) {
+    nodes { %s } pageInfo { hasNextPage endCursor } } }""" % ISSUE_FIELDS
+
+
 def weekly(cfg, args):
     if not guard(cfg, 16, {4}, args.force):
         return
     tz = ZoneInfo(cfg["timezone"]); today = local_now(cfg).date()
-    week_start = today - timedelta(days=today.weekday())
+    monday = today - timedelta(days=today.weekday())
     lin = LinearClient(env("LINEAR_API_KEY")); slack = SlackClient(env("SLACK_BOT_TOKEN"))
     roster = {p["email"].lower() for p in cfg["people"]}
-    done = [i for i in lin.paged(Q_DONE_SINCE, ["issues"], {"team": cfg["linear"]["team_name"], "since": week_start.isoformat() + "T00:00:00Z"}) if owner_email(i) in roster]
-    pts = sum((i.get("estimate") or 0) for i in done)
-    support = sum(1 for i in done if any(l["name"].lower() in ("itsm", "bug") for l in i["labels"]["nodes"]))
-    names = {p["email"].lower(): p["name"] for p in cfg["people"]}
-    per = Counter(names.get(owner_email(i), "Unassigned") for i in done)
-    issues = open_issues(lin, cfg)
-    team = logic.classify([i for i in issues if owner_email(i) in roster], today, tz, cfg["rules"]["stale_workdays"])
+    since = (monday - timedelta(days=7 * 14)).isoformat() + "T00:00:00Z"
+    person_done, team_done = {}, []
+    for p in cfg["people"]:
+        e = p["email"].lower()
+        rows = [i for i in lin.paged(Q_PERSON_DONE, ["issues"], {"email": e, "since": since}, max_pages=4)
+                if (i.get("team") or {}).get("name") not in cfg["linear"]["exclude_teams"] and i.get("completedAt")]
+        person_done[e] = rows; team_done += rows
+    open_all = [i for i in open_issues(lin, cfg) if owner_email(i) in roster]
+    decisions = [i for i in lin.paged(Q_DECISIONS_ALL, ["issues"], {"label": cfg["linear"]["needs_decision_label"]}, max_pages=1)]
     st = lin.q(Q_TEAM_STATE, {"id": cfg["linear"]["team_id"]})["team"]
-    cyc = st.get("activeCycle")
-    lines = [f"*Industrial Operations, week of {week_start.day} {week_start:%b}*",
-             f"• Closed *{len(done)} tickets* ({pts:g} points); {support} were support or bugs.",
-             f"• Now *{len(team.late)} late*, *{len(team.blocked)} blocked*, {len(team.quiet)} gone quiet."]
-    if cyc and cyc.get("scopeHistory"):
-        sc, cs = cyc["scopeHistory"], cyc["completedScopeHistory"]
-        lines.append(f"• Cycle {cyc['number']}: {cs[-1]:g} of {sc[-1]:g} points done ({round(cs[-1] / max(sc[-1], 1) * 100)}%), scope {'+' if sc[-1] >= sc[0] else ''}{sc[-1] - sc[0]:g} since it started.")
-    risky = [p for p in st["projects"]["nodes"] if (p.get("status") or {}).get("type") == "started" and p.get("health") in ("atRisk", "offTrack")]
-    if risky:
-        lines.append("• Projects at risk: " + ", ".join(f"<{p['url']}|{p['name']}> ({'off track' if p['health'] == 'offTrack' else 'at risk'})" for p in risky))
-    top = ", ".join(f"{n.split()[0]} {c}" for n, c in per.most_common(6))
-    if top:
-        lines.append(f"• Closed by: {top}")
-    if cfg.get("weekly_report_url"):
-        lines.append(f"<{cfg['weekly_report_url']}|Open the Week tab> for shipped and slipped per project, team health, risks and next week's plan.")
-    text = "\n".join(lines)
+    ours = {(i.get("project") or {}).get("name") for i in open_all}
+    risky = [p for p in st["projects"]["nodes"] if (p.get("status") or {}).get("type") == "started" and p.get("health") in ("atRisk", "offTrack") and p["name"] in ours]
+    text = logic.weekly_text(monday=monday, today=today, tz=tz, team_done=team_done, open_issues=open_all, people=cfg["people"],
+                             person_done=person_done, decisions=decisions, cycle=st.get("activeCycle"), risky_projects=risky,
+                             week_url=cfg.get("weekly_report_url"))
     if args.dry_run:
         print(text); return
     recipients = cfg.get("weekly_recipients", [])
