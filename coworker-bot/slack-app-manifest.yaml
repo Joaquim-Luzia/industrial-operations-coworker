@@ -1,0 +1,30 @@
+display_information:
+  name: Industrial Operations Coworker
+  description: Morning DMs with what is late, blocked or quiet, and the Friday team summary.
+  background_color: "#4e2da1"
+features:
+  bot_user:
+    display_name: Industrial Operations Coworker
+    always_online: false
+  app_home:
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: false
+oauth_config:
+  scopes:
+    bot:
+      - chat:write
+      - im:write
+      - users:read
+      - users:read.email
+      - channels:read
+      - groups:read
+    user:
+      - search:read
+      - channels:history
+      - groups:history
+      - im:history
+      - mpim:history
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

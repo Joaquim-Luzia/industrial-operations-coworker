@@ -1,0 +1,22 @@
+# Industrial Operations Coworker: who gets what, and where.
+timezone: Europe/Lisbon
+board_url: https://claude.ai/artifact/CdeQXEm882JJMMXQf2huVh
+weekly_report_url: https://claude.ai/artifact/CA5QrikRq2eDfZCFTtuqVc
+weekly_channel: C0AC5JSVA4C    # #squad-eng-a
+linear:
+  team_id: 3deabb05-cd43-47bd-99ff-e0ae5516a9c8   # Industrial Operations (DEV2)
+  team_name: Industrial Operations
+  exclude_teams: [HR]
+  needs_decision_label: needs-decision
+rules:
+  stale_workdays: 3
+  skip_empty_dms: true         # don't DM someone when they have nothing to act on
+lead: joaquim.luzia@procimo.com
+# The team: everyone who gets a morning DM, and the only people counted in team numbers. `email` must match both Slack and Linear.
+# `slack` is the Slack user ID (avoids looking people up by email). `github` is optional: when set (and GITHUB_TOKEN is configured) the DM lists PRs waiting on their review.
+people:
+  - { name: Joaquim Luzia,    email: joaquim.luzia@procimo.com, slack: U0819PPR50W,    github: Joaquim-Luzia }
+  - { name: Gabriel Shomorin, email: gabriel.shomorin@procimo.com, slack: U0AFH3NNE48, github: gabrielshomorin }
+  - { name: Pedro Cardoso,    email: pedro.cardoso@procimo.com, slack: U0AESD85C68,    github: PedroCardosoProcimo }
+  - { name: Vusal Ismayilov,  email: vusal.ismayilov@procimo.com, slack: U0AELNYEL3Y }
+  - { name: Henry Okafor,     email: henry.okafor@procimo.com, slack: U0BLG0FHTAT }

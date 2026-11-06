@@ -1,0 +1,55 @@
+name: Industrial Operations Coworker
+
+on:
+  schedule:
+    # Lisbon is UTC+0 in winter and UTC+1 in summer, so each job runs at both
+    # UTC hours and the script only acts in the right local hour.
+    - cron: "0 8,9 * * 1-5"     # daily DMs, 09:00 Lisbon
+    - cron: "0 15,16 * * 5"     # weekly summary, Friday 16:00 Lisbon
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "daily or weekly"
+        required: true
+        default: daily
+      flags:
+        description: "--dry-run, --only-to-lead, --force"
+        required: false
+        default: "--force --only-to-lead"
+
+concurrency: coworker
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r coworker-bot/requirements.txt
+      - name: Pick the job
+        id: pick
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=${{ inputs.mode }}" >> $GITHUB_OUTPUT; echo "flags=${{ inputs.flags }}" >> $GITHUB_OUTPUT
+          else
+            case "${{ github.event.schedule }}" in
+              "0 8,9 * * 1-5")   echo "mode=daily"   >> $GITHUB_OUTPUT ;;
+              *)                 echo "mode=weekly"  >> $GITHUB_OUTPUT ;;
+            esac
+            echo "flags=" >> $GITHUB_OUTPUT
+          fi
+      - name: Run
+        working-directory: coworker-bot
+        env:
+          LINEAR_API_KEY: ${{ secrets.COWORKER_LINEAR_API_KEY }}
+          SLACK_BOT_TOKEN: ${{ secrets.COWORKER_SLACK_BOT_TOKEN }}
+          SLACK_LEAD_USER_TOKEN: ${{ secrets.COWORKER_SLACK_LEAD_USER_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.COWORKER_GITHUB_TOKEN }}
+        run: |
+          if [ -z "$LINEAR_API_KEY" ] || [ -z "$SLACK_BOT_TOKEN" ]; then
+            echo "Secrets not set yet (COWORKER_LINEAR_API_KEY, COWORKER_SLACK_BOT_TOKEN). Nothing to do."; exit 0
+          fi
+          python -m coworker.main ${{ steps.pick.outputs.mode }} ${{ steps.pick.outputs.flags }}
