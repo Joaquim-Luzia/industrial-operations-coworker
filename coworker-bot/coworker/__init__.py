@@ -1,0 +1,1 @@
+"""Industrial Operations Coworker."""

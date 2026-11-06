@@ -1,8 +1,11 @@
 # Industrial Operations Coworker: who gets what, and where.
 timezone: Europe/Lisbon
 board_url: https://claude.ai/artifact/CdeQXEm882JJMMXQf2huVh
-weekly_report_url: https://claude.ai/artifact/CA5QrikRq2eDfZCFTtuqVc
-weekly_channel: C0AC5JSVA4C    # #squad-eng-a
+weekly_report_url: https://claude.ai/artifact/CdeQXEm882JJMMXQf2huVh#week
+# The Friday summary is a DM to these people only (it compares people, so it stays with the leads).
+weekly_recipients:
+  - U0819PPR50W   # Joaquim Luzia
+  - U0ADPBFBUJ3   # João Viegas
 linear:
   team_id: 3deabb05-cd43-47bd-99ff-e0ae5516a9c8   # Industrial Operations (DEV2)
   team_name: Industrial Operations
@@ -12,7 +15,7 @@ rules:
   stale_workdays: 3
   skip_empty_dms: true         # don't DM someone when they have nothing to act on
 lead: joaquim.luzia@procimo.com
-# The team: everyone who gets a morning DM, and the only people counted in team numbers. `email` must match both Slack and Linear.
+# The team: everyone who gets a morning DM, and the only people counted in team numbers. `email` must match Linear.
 # `slack` is the Slack user ID (avoids looking people up by email). `github` is optional: when set (and GITHUB_TOKEN is configured) the DM lists PRs waiting on their review.
 people:
   - { name: Joaquim Luzia,    email: joaquim.luzia@procimo.com, slack: U0819PPR50W,    github: Joaquim-Luzia }

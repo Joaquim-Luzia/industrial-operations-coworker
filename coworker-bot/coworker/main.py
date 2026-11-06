@@ -1,7 +1,7 @@
 """Industrial Operations Coworker.
 
     python -m coworker.main daily     # 09:00 Lisbon, weekdays: one DM per person
-    python -m coworker.main weekly    # Friday 16:00 Lisbon: summary in #squad-eng-a
+    python -m coworker.main weekly    # Friday 16:00 Lisbon: summary DM to Joaquim and João
 
 Flags:
     --force          ignore the local-time guard (the workflow runs at two UTC hours to survive DST)
@@ -207,18 +207,20 @@ def weekly(cfg, args):
     top = ", ".join(f"{n.split()[0]} {c}" for n, c in per.most_common(6))
     if top:
         lines.append(f"• Closed by: {top}")
-    links = [f"<{cfg['board_url']}|Team board>"]
     if cfg.get("weekly_report_url"):
-        links.insert(0, f"<{cfg['weekly_report_url']}|Weekly report>")
-    lines.append(" · ".join(links))
+        lines.append(f"<{cfg['weekly_report_url']}|Open the Week tab> for shipped and slipped per project, team health, risks and next week's plan.")
     text = "\n".join(lines)
     if args.dry_run:
         print(text); return
-    ch = cfg["weekly_channel"] if cfg["weekly_channel"].startswith("C") else slack.channel_id(cfg["weekly_channel"])
-    if not ch:
-        sys.exit(f"Channel #{cfg['weekly_channel']} not found, or the bot isn't in it. Invite it with /invite @Industrial Operations Coworker.")
-    slack.call("chat.postMessage", channel=ch, text=text, unfurl_links=False)
-    print("Weekly summary posted.")
+    recipients = cfg.get("weekly_recipients", [])
+    if args.only_to_lead:
+        lead = cfg["lead"].lower()
+        recipients = [next((p.get("slack") for p in cfg["people"] if p["email"].lower() == lead and p.get("slack")), None) or slack.user_id(lead)]
+        text = "_Preview of the Friday summary_\n" + text
+    for uid in recipients:
+        ch = slack.call("conversations.open", users=uid)["channel"]["id"]
+        slack.call("chat.postMessage", channel=ch, text=text, unfurl_links=False)
+    print(f"Weekly summary sent to {len(recipients)} {'person' if len(recipients) == 1 else 'people'}.")
 
 
 def main():
