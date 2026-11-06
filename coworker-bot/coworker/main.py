@@ -190,12 +190,13 @@ def weekly(cfg, args):
     done = [i for i in lin.paged(Q_DONE_SINCE, ["issues"], {"team": cfg["linear"]["team_name"], "since": week_start.isoformat() + "T00:00:00Z"}) if owner_email(i) in roster]
     pts = sum((i.get("estimate") or 0) for i in done)
     support = sum(1 for i in done if any(l["name"].lower() in ("itsm", "bug") for l in i["labels"]["nodes"]))
-    per = Counter((i.get("assignee") or {}).get("name", "Unassigned") for i in done)
+    names = {p["email"].lower(): p["name"] for p in cfg["people"]}
+    per = Counter(names.get(owner_email(i), "Unassigned") for i in done)
     issues = open_issues(lin, cfg)
     team = logic.classify([i for i in issues if owner_email(i) in roster], today, tz, cfg["rules"]["stale_workdays"])
     st = lin.q(Q_TEAM_STATE, {"id": cfg["linear"]["team_id"]})["team"]
     cyc = st.get("activeCycle")
-    lines = [f"*Industrial Operations, week of {week_start:%d %b}*",
+    lines = [f"*Industrial Operations, week of {week_start.day} {week_start:%b}*",
              f"• Closed *{len(done)} tickets* ({pts:g} points); {support} were support or bugs.",
              f"• Now *{len(team.late)} late*, *{len(team.blocked)} blocked*, {len(team.quiet)} gone quiet."]
     if cyc and cyc.get("scopeHistory"):
