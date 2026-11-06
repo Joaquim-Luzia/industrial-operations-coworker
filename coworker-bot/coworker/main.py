@@ -86,19 +86,34 @@ def owner_email(i: dict) -> str | None:
 
 
 # ---------- Slack: unanswered mentions and DMs for the lead (needs the lead's user token) ----------
-def slack_unanswered(user_token: str | None, lead_uid: str | None, now: datetime) -> list[dict]:
+def slack_unanswered(user_token: str | None, lead_uid: str | None, now: datetime, bot: SlackClient | None = None) -> list[dict]:
     if not user_token or not lead_uid:
         return []
     us = SlackClient(user_token)
     since = (now - timedelta(days=7)).strftime("%Y-%m-%d")
-    out, seen = [], set()
+    out, seen, people_cache = [], set(), {}
+
+    def person(uid: str | None) -> dict | None:
+        """Real name for a human sender; None for bots, apps and Slackbot (Linear, GitHub, this bot...)."""
+        if not uid or uid == "USLACKBOT":
+            return None
+        if uid not in people_cache:
+            try:
+                u = (bot or us).call("users.info", user=uid)["user"]
+                people_cache[uid] = None if (u.get("is_bot") or u.get("is_app_user") or u.get("deleted")) else {"name": (u.get("profile") or {}).get("real_name") or u.get("real_name") or u.get("name")}
+            except RuntimeError:
+                people_cache[uid] = {"name": None}
+        return people_cache[uid]
     for query in (f"<@{lead_uid}> after:{since}", f"to:me after:{since}"):
         try:
             res = us.call("search.messages", query=query, count=40, sort="timestamp")
         except RuntimeError as e:
             print("Slack search skipped:", e); return out
         for m in res.get("messages", {}).get("matches", []):
-            if m.get("user") == lead_uid or m.get("ts") in seen:
+            if m.get("user") == lead_uid or m.get("ts") in seen or m.get("bot_id") or m.get("subtype") in ("bot_message", "app_message"):
+                continue
+            sender = person(m.get("user"))
+            if sender is None:
                 continue
             seen.add(m["ts"])
             ts = float(m["ts"]); age_h = (now.timestamp() - ts) / 3600
@@ -119,7 +134,7 @@ def slack_unanswered(user_token: str | None, lead_uid: str | None, now: datetime
             if any(x.get("user") == lead_uid and float(x["ts"]) > ts for x in later):
                 continue
             where = "a DM" if m["channel"].get("is_im") else ("#" + m["channel"].get("name", "channel"))
-            out.append({"permalink": m.get("permalink"), "who": m.get("username") or "someone", "where": where,
+            out.append({"permalink": m.get("permalink"), "who": sender.get("name") or m.get("username") or "someone", "where": where,
                         "age": f"{int(age_h // 24)}d" if age_h >= 48 else f"{int(age_h)}h"})
             if len(out) >= 8:
                 return out
@@ -158,7 +173,7 @@ def daily(cfg, args):
                 if n.get("readAt") is None and "mention" in (n.get("type") or "").lower() and n.get("issue"):
                     mentions.append({"url": n["issue"]["url"], "title": f"{n['issue']['identifier']} {n['issue']['title'][:60]} ({(n.get('actor') or {}).get('name','someone')})"})
             lead_extra = {"decisions": decisions, "mentions": mentions[:8],
-                          "slack": slack_unanswered(env("SLACK_LEAD_USER_TOKEN", required=False), lead_uid, now),
+                          "slack": slack_unanswered(env("SLACK_LEAD_USER_TOKEN", required=False), lead_uid, now, bot=slack),
                           "team_line": f"Team: {len(team.late)} late, {len(team.blocked)} blocked, {len(team.quiet)} gone quiet."}
         if a.empty() and not reviews and not (lead_extra and (lead_extra["decisions"] or lead_extra["mentions"] or lead_extra["slack"])) and cfg["rules"].get("skip_empty_dms", True):
             print(f"{p['name']}: nothing to send."); continue

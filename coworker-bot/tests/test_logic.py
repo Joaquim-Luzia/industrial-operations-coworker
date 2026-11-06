@@ -95,3 +95,14 @@ def test_weekly_text_no_ranking_and_flags_slips():
     assert "Slipped: *2*" in txt and "O1" in txt and "W1" in txt
     assert "over capacity: Ana (22 pt scheduled, usual 10)" in txt
     assert "Closed by" not in txt and "Rui" not in txt
+
+
+def test_reviews_and_more_wording():
+    a = logic.Attention()
+    reviews = [{"html_url": "https://g/1", "repo": "sims-backend", "number": 571, "title": "x" * 90, "age": 0}]
+    extra = {"decisions": [], "mentions": [], "team_line": "",
+             "slack": [{"permalink": f"https://s/{k}", "who": "João Viegas", "where": "#c", "age": "2d"} for k in range(10)]}
+    text, blocks = logic.daily_blocks({"name": "Joaquim Luzia"}, a, board_url="https://b", slug="joaquim-luzia", reviews=reviews, lead_extra=extra)
+    flat = str(blocks)
+    assert "opened today" in flat and "open 0d" not in flat and "…" in flat
+    assert "+2 more_" in flat and "more on the board" not in flat

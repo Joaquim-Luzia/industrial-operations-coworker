@@ -70,6 +70,15 @@ def classify(issues: list[dict], today: date, tz, stale_workdays: int = 3) -> At
     return a
 
 
+def _clip(s: str, n: int = 70) -> str:
+    s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return s if len(s) <= n else s[:n - 1].rstrip() + "…"
+
+
+def _age(days: int) -> str:
+    return "opened today" if days <= 0 else "opened yesterday" if days == 1 else f"open {days}d"
+
+
 def _link(i: dict) -> str:
     title = i["title"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     if len(title) > 70:
@@ -77,10 +86,10 @@ def _link(i: dict) -> str:
     return f"<{i['url']}|{i['identifier']}> {title}"
 
 
-def _section(title: str, lines: list[str], max_lines: int = 6) -> list[dict]:
+def _section(title: str, lines: list[str], max_lines: int = 6, more: str = "on the board") -> list[dict]:
     if not lines:
         return []
-    shown = lines[:max_lines] + ([f"_+{len(lines) - max_lines} more on the board_"] if len(lines) > max_lines else [])
+    shown = lines[:max_lines] + ([f"_+{len(lines) - max_lines} more {more}_".replace("  ", " ").replace(" _", "_")] if len(lines) > max_lines else [])
     return [{"type": "section", "text": {"type": "mrkdwn", "text": f"*{title}*\n" + "\n".join("• " + l for l in shown)}}]
 
 
@@ -110,8 +119,8 @@ def daily_blocks(person: dict, a: Attention, *, board_url: str, slug: str, revie
         w = [f"Decision: {_link(i)}" for i in lead_extra.get("decisions", [])]
         w += [f"Linear mention: <{m['url']}|{m['title']}>" for m in lead_extra.get("mentions", [])]
         w += [f"Slack, {m['age']} unanswered: <{m['permalink']}|{m['who']} in {m['where']}>" for m in lead_extra.get("slack", [])]
-        blocks += _section("Waiting on you", w)
-    blocks += _section("Reviews waiting on you", [f"<{p['html_url']}|{p['repo']}#{p['number']}> {p['title'][:70]} · open {p['age']}d" for p in reviews])
+        blocks += _section("Waiting on you", w, max_lines=8, more="")
+    blocks += _section("Reviews waiting on you", [f"<{p['html_url']}|{p['repo']}#{p['number']}> {_clip(p['title'])} · {_age(p['age'])}" for p in reviews])
     blocks += _section("Blocked", [f"{_link(i)} · {i['state']['name']}" for i in a.blocked])
     blocks += _section("Late", [f"{_link(i)} · {i['_late']}d late" for i in a.late])
     blocks += _section("Due today", [_link(i) for i in a.today])
